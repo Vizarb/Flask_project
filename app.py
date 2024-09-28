@@ -1,17 +1,23 @@
+# from enum import Enum
+# from flask import Flask, jsonify, request, abort
+# from flask_sqlalchemy import SQLAlchemy
+# from datetime import datetime, timedelta
+# from flask_cors import CORS
+
+from backend import app, db  # Adjust the path based on your structure
 from enum import Enum
-from flask import Flask, jsonify, request, abort
-from flask_sqlalchemy import SQLAlchemy
+from flask import jsonify, request, abort
 from datetime import datetime, timedelta
-from flask_cors import CORS
 
-# Initialize the Flask application
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Initialize SQLAlchemy
-db = SQLAlchemy(app)
-CORS(app)
+# # Initialize the Flask application
+# app = Flask(__name__)
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'
+# app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# # Initialize SQLAlchemy
+# db = SQLAlchemy(app)
+# CORS(app)
 
 # Define Enums for City and Loan Type
 class City(Enum):
@@ -153,7 +159,7 @@ def get_records(model_class, status):
 
     if status == 'late':
         current_time = datetime.utcnow()
-        records = model_class.query.filter(Loans.return_date>current_time).all()
+        records = model_class.query.filter(Loans.return_date<   current_time).all()
         log_message('INFO', f"Retrieved all {model_class.__name__.lower()}s.")
 
     elif status == 'all':
@@ -417,36 +423,5 @@ def get_loans():
     return jsonify([loans.to_dict() for loans in loans]), 200
 
 
-# Database seeding
-def seed_database():
-    """Seed the database with initial data."""
-    db.create_all()  # Create all tables if they don't exist
 
-    # Check if there are already books in the database
-    if Books.query.count() == 0:
-        # Add some initial books
-        initial_books = [
-            Books(name='1984', author='George Orwell', year_published=1949, loan_time_type=LoanType.TEN_DAYS),
-            Books(name='Brave New World', author='Aldous Huxley', year_published=1932, loan_time_type=LoanType.FIVE_DAYS),
-            Books(name='The Catcher in the Rye', author='J.D. Salinger', year_published=1951, loan_time_type=LoanType.TWO_DAYS)
-        ]
-        db.session.bulk_save_objects(initial_books)
-        db.session.commit()
-        log_message('INFO', "Database seeded with initial books.")
-
-    # Check if there are already customers in the database
-    if Customers.query.count() == 0:
-        # Add some initial customers
-        initial_customers = [
-            Customers(full_name='John Doe', email='john@example.com', city=City.TEL_AVIV, age=30),
-            Customers(full_name='Jane Smith', email='jane@example.com', city=City.JERUSALEM, age=28)
-        ]
-        db.session.bulk_save_objects(initial_customers)
-        db.session.commit()
-        log_message('INFO', "Database seeded with initial customers.")
-
-if __name__ == '__main__':
-    with app.app_context():
-        seed_database()  # Seed the database when starting the app
-    app.run(debug=True)
 

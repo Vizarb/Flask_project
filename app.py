@@ -1,19 +1,29 @@
 from enum import Enum
+import os
 from flask import Flask, jsonify, request, abort
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, get_jwt, jwt_required, get_jwt_identity
 import bcrypt  # For password hashing
+from sqlalchemy.orm import joinedload
 
 
 # Initialize the Flask application
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'your_secret_key_here'
+"""
+FOR PROD!!!
+import secrets
+
+app.config['SECRET_KEY'] = secrets.token_hex(16)  # Generates a random 32-character hex string
+"""
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default_secret_key') 
+app.config['JWT_SECRET_KEY'] = app.config['SECRET_KEY']
 app.config['JWT_BLACKLIST_ENABLED'] = True
 app.config['JWT_BLACKLIST_TOKEN_CHECKS'] = ['access']
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
 
 # Initialize SQLAlchemy
 db = SQLAlchemy(app)
@@ -67,6 +77,9 @@ class Books(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     is_loaned = db.Column(db.Boolean, default=False)
 
+    # Define a relationship to Loans
+    loans = db.relationship('Loans', back_populates='book')
+
     def to_dict(self):
         """Convert the Book object to a dictionary for JSON serialization."""
         return {
@@ -79,6 +92,7 @@ class Books(db.Model):
             'is_loaned': self.is_loaned
         }
 
+
 class Customers(db.Model):
     """Model representing a customer of the library."""
     id = db.Column(db.Integer, primary_key=True)
@@ -87,6 +101,9 @@ class Customers(db.Model):
     city = db.Column(db.Enum(City), nullable=False)
     age = db.Column(db.Integer, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
+
+    # Define a relationship to Loans
+    loans = db.relationship('Loans', back_populates='customer')
 
     def to_dict(self):
         """Convert the Customer object to a dictionary for JSON serialization."""
@@ -99,6 +116,7 @@ class Customers(db.Model):
             'is_active': self.is_active
         }
 
+
 class Loans(db.Model):
     """Model representing a loan of a book."""
     id = db.Column(db.Integer, primary_key=True)
@@ -108,6 +126,10 @@ class Loans(db.Model):
     loan_date = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     return_date = db.Column(db.DateTime, nullable=False)
     is_active = db.Column(db.Boolean, default=True)  # New column for loan status
+
+    # Define relationships to Books and Customers
+    book = db.relationship('Books', back_populates='loans')
+    customer = db.relationship('Customers', back_populates='loans')
 
     def to_dict(self):
         """Convert the Loan object to a dictionary for JSON serialization."""
@@ -176,26 +198,32 @@ def validate_fields(data, required_fields, enum_fields=None):
                 log_message('ERROR', f"Invalid value for {field}: {data[field]}")
                 abort(400, description=f"Invalid value for {field}. Must be one of: {', '.join(enum_class.__members__.keys())}.")
 
-def get_records(model_class, status):
-    """Retrieve records based on specified status: active, deactivated, late or all."""
+def get_records(model_class, status, eager_load=None):
+    """Retrieve records based on specified status: active, deactivated, late, or all."""
     if status not in ['active', 'deactivated', 'all', 'late']:
         log_message('WARNING', f"Invalid status parameter provided for {model_class.__name__.lower()}s.")
-        abort(400, description="Invalid status parameter. Use 'active', 'deactivated', or 'all'('late' == loans only).")
+        abort(400, description="Invalid status parameter. Use 'active', 'deactivated', 'all', or 'late'.")
+
+    query = model_class.query
+
+    if eager_load:
+        query = query.options(*eager_load)
 
     if status == 'late':
         current_time = datetime.utcnow()
-        records = model_class.query.filter(Loans.return_date>current_time).all()
-        log_message('INFO', f"Retrieved all {model_class.__name__.lower()}s.")
-
+        records = query.filter(model_class.return_date < current_time).all()
+        log_message('INFO', f"Retrieved all late {model_class.__name__.lower()}s.")
     elif status == 'all':
-        records = model_class.query.all()
+        records = query.all()
         log_message('INFO', f"Retrieved all {model_class.__name__.lower()}s.")
     else:
         is_active = status == 'active'
-        records = model_class.query.filter_by(is_active=is_active).all()
+        records = query.filter_by(is_active=is_active).all()
         log_message('INFO', f"Retrieved all {'active' if is_active else 'deactivated'} {model_class.__name__.lower()}s.")
 
     return records
+
+
 
 # Routes for Auth
 @app.route('/register', methods=['POST'])
@@ -427,7 +455,6 @@ def delete_customer(email):
     log_message('INFO', f"Deleted customer: {email}")
     return jsonify({'message': f"Customer '{email}' deleted successfully."}), 200
 
-# Routes for loans
 @app.route('/loan', methods=['POST'])
 @jwt_required()
 def create_loan():
@@ -467,6 +494,8 @@ def create_loan():
     log_message('INFO', f"Successfully created a new loan: {new_loan.id} for book ID: {data['book_id']}")
     return jsonify(new_loan.to_dict()), 201
 
+
+
 @app.route('/loan/<int:loan_id>', methods=['DELETE'])
 @jwt_required()
 def delete_loan(loan_id):
@@ -490,23 +519,23 @@ def delete_loan(loan_id):
 @app.route('/return/<int:loan_id>', methods=['POST'])
 @jwt_required()
 def return_loan(loan_id):
-    """Return a loan."""
     loan = Loans.query.get(loan_id)
     if loan is None:
         log_message('WARNING', f"Loan not found: {loan_id}")
         return jsonify({'error': 'Loan not found'}), 404
 
-    # Check if the loan is already inactive
     if not loan.is_active:
         log_message('WARNING', f"Loan already returned: {loan_id}")
         return jsonify({'error': 'Loan already returned'}), 400
 
-    # Update loan status to inactive and set return date
     loan.is_active = False
     loan.return_date = datetime.utcnow()  # Set the return date
-    book = Books.query.get(loan.book_id)
+
+    # Use relationship to access the book
+    book = loan.book  # Now using the relationship
     if book:
-        book.is_loaned = False
+        book.is_loaned = False  # Update book status
+
     db.session.commit()
 
     log_message('INFO', f"Successfully returned book ID: {book.id} for loan ID: {loan_id}")
@@ -514,10 +543,21 @@ def return_loan(loan_id):
 
 @app.route('/loans', methods=['GET'])
 def get_loans():
-    """Retrieve loans based on specified status: active, deactivated, or all."""
+    """Retrieve loans based on specified status: active, deactivated, or late."""
     status = request.args.get('status', default='active', type=str)
-    loans = get_records(Loans, status)
-    return jsonify([loans.to_dict() for loans in loans]), 200
+
+    # Use get_records to retrieve loans with related book and customer data
+    loans = get_records(Loans, status, eager_load=[joinedload(Loans.books), joinedload(Loans.customer)])
+
+    # Transform loans to include books and customer data
+    loan_data = []
+    for loan in loans:
+        loan_info = loan.to_dict()
+        loan_info['books'] = loan.books.to_dict()  # Assuming `to_dict()` method exists in Book model
+        loan_info['customer'] = loan.customer.to_dict()  # Assuming `to_dict()` method exists in Customer model
+        loan_data.append(loan_info)
+
+    return jsonify(loan_data), 200
 
 
 # Database seeding

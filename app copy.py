@@ -3,8 +3,12 @@ from flask import Flask, jsonify, request, abort
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 from flask_cors import CORS
-from flask_jwt_extended import JWTManager, create_access_token, get_jwt, jwt_required, get_jwt_identity
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 import bcrypt  # For password hashing
+from dotenv import load_dotenv
+from os import getenv
+# Load environment variables from a .env file
+load_dotenv()
 
 
 # Initialize the Flask application
@@ -12,22 +16,17 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'your_secret_key_here'
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', os.urandom(24).hex())
 app.config['JWT_BLACKLIST_ENABLED'] = True
 app.config['JWT_BLACKLIST_TOKEN_CHECKS'] = ['access']
+# Use an environment variable for the JWT secret key, with a fallback option
+
 
 # Initialize SQLAlchemy
 db = SQLAlchemy(app)
 CORS(app)
-
-# Initialize JWT Manager
 jwt = JWTManager(app)
 
-# Token Blacklist Check
-@jwt.token_in_blocklist_loader
-def check_if_token_in_blacklist(jwt_header, jwt_payload):
-    jti = jwt_payload['jti']  # Get the token ID
-    token = TokenBlacklist.query.filter_by(jti=jti).first()
-    return token is not None  # Return True if the token is blacklisted
 
 # Define Enums for City and Loan Type
 class City(Enum):
@@ -223,12 +222,14 @@ def register():
 
     return jsonify({"msg": "User registered successfully."}), 201
 
+
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
     username = data.get('username')
     password = data.get('password')
     
+    print(data)
     user = User.query.filter_by(username=username).first()
     
     # Check if user exists and password is correct
@@ -241,21 +242,14 @@ def login():
 @app.route('/logout', methods=['POST'])
 @jwt_required()
 def logout():
-    jti = get_jwt()['jti']  # Get the JWT ID
-    # Add the token to the blacklist
-    db.session.add(TokenBlacklist(jti=jti))
-    db.session.commit()
+    # This could involve adding the token to a blacklist
     return jsonify({"msg": "User has been logged out."}), 200
 
 @app.route('/protected', methods=['GET'])
 @jwt_required()
 def protected():
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)  # Fetch the user from the database
-    if user is None:
-        return jsonify({"msg": "User not found."}), 404
-    
-    return jsonify({"message": f"Hello user {user.username}!"}), 200
+    current_user = get_jwt_identity()
+    return jsonify({"message": f"Hello user {current_user}!"}), 200
 
 @app.route('/check_user/<username>', methods=['GET'])
 def check_user(username):

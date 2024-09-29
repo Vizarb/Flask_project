@@ -268,6 +268,7 @@ def check_user(username):
 
 # Routes for books
 @app.route('/book', methods=['POST'])
+@jwt_required()  # Require authentication
 def create_book():
     """Create a new book in the library."""
     data = request.json
@@ -428,6 +429,7 @@ def delete_customer(email):
 
 # Routes for loans
 @app.route('/loan', methods=['POST'])
+@jwt_required()
 def create_loan():
     """Create a new loan for a book."""
     data = request.json
@@ -466,6 +468,7 @@ def create_loan():
     return jsonify(new_loan.to_dict()), 201
 
 @app.route('/loan/<int:loan_id>', methods=['DELETE'])
+@jwt_required()
 def delete_loan(loan_id):
     """Delete a specific loan by its ID."""
     loan = Loans.query.get(loan_id)
@@ -485,6 +488,7 @@ def delete_loan(loan_id):
     return jsonify({'message': f"Loan '{loan_id}' deleted successfully."}), 200
 
 @app.route('/return/<int:loan_id>', methods=['POST'])
+@jwt_required()
 def return_loan(loan_id):
     """Return a loan."""
     loan = Loans.query.get(loan_id)

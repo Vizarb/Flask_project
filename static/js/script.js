@@ -260,7 +260,7 @@ document.getElementById('registerCustomerForm').addEventListener('submit', async
     try {
         showLoading();
         const response = await axios.post(`${apiUrl}/customer`, { full_name, email, city, age });
-        displayMessage(response.data.msg || `Customer Created: ${response.data.full_name}`);
+        displayMessage(response.data.msg || 'Customer registered successfully.');
     } catch (error) {
         displayMessage(error.response?.data?.msg || 'Failed to register customer.');
     } finally {
@@ -268,20 +268,19 @@ document.getElementById('registerCustomerForm').addEventListener('submit', async
     }
 });
 
-// Search customer
+// Search customers
 document.getElementById('searchCustomerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const fullName = document.getElementById('searchCustomerName').value.trim();
-    const email = document.getElementById('searchCustomerEmail').value.trim() || null;
+    const name = document.getElementById('searchCustomerName').value.trim();
 
-    if (!fullName && !email) {
-        displayMessage('Please provide a customer name or email to search.');
+    if (!name) {
+        displayMessage('Please provide a customer name to search.');
         return;
     }
 
     try {
         showLoading();
-        const response = await axios.post(`${apiUrl}/customer/search`, { email, full_name: fullName });
+        const response = await axios.post(`${apiUrl}/customer/search`, { name });
         displayPayload(response.data, formatCustomer, 'customersList');
     } catch (error) {
         displayMessage(error.response?.data?.msg || 'Search failed.');
@@ -293,120 +292,35 @@ document.getElementById('searchCustomerForm').addEventListener('submit', async (
 // Create loan
 document.getElementById('createLoanForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const bookId = document.getElementById('loanBookId').value.trim();
+    const customerId = document.getElementById('loanCustomerId').value.trim();
+    const returnDate = document.getElementById('returnDate').value.trim();
 
-    const bookName = document.getElementById('loanBookName').value.trim();
-    const customerFullName = document.getElementById('loanCustomerFullName').value.trim();
-    const customerEmail = document.getElementById('loanCustomerEmail').value.trim();
-    const duration = document.getElementById('loanDuration').value.trim();
-
-    if (!bookName || !customerFullName || !customerEmail || !duration) {
+    if (!bookId || !customerId || !returnDate) {
         displayMessage('All fields are required to create a loan.');
         return;
     }
 
     try {
         showLoading();
-        const bookResponse = await axios.post(`${apiUrl}/book/search`, { name: bookName });
-        if (bookResponse.data.length === 0) {
-            displayMessage(`Book not found.`);
-            throw new Error("Book not found.");
-        }
-
-        const bookId = bookResponse.data[0].id;
-
-        const customerResponse = await axios.post(`${apiUrl}/customer/search`, {
-            full_name: customerFullName,
-            email: customerEmail
-        });
-        if (customerResponse.data.length === 0) {
-            displayMessage(`Customer not found.`);
-            throw new Error("Customer not found.");
-        }
-
-        const customerId = customerResponse.data[0].id;
-
-        const loanResponse = await axios.post(`${apiUrl}/loan`, {
-            book_id: bookId,
-            customer_id: customerId,
-            loan_time_type: duration
-        });
-
-        displayMessage(loanResponse.data.msg || `Loan Created: ${JSON.stringify(loanResponse.data)}`);
+        const response = await axios.post(`${apiUrl}/loan`, { bookId, customerId, returnDate });
+        displayMessage(response.data.msg || 'Loan created successfully.');
     } catch (error) {
-        displayMessage(error.response?.data?.msg || error.message || 'Failed to create loan.');
+        displayMessage(error.response?.data?.msg || 'Failed to create loan.');
     } finally {
         hideLoading();
     }
 });
 
-// Get all books based on selected type
-document.getElementById('getBooksBtn').addEventListener('click', async () => {
-    const bookType = document.getElementById('bookTypeSelect').value;
+// List loans
+document.getElementById('listLoansBtn').addEventListener('click', async () => {
     try {
         showLoading();
-        const response = await axios.get(`${apiUrl}/books?status=${bookType}`);
-        displayPayload(response.data, formatBook, 'booksList');
-    } catch (error) {
-        displayMessage(error.response?.data?.msg || 'Failed to retrieve books.');
-    } finally {
-        hideLoading();
-    }
-});
-
-// Get all loans based on selected type
-document.getElementById('getLoansBtn').addEventListener('click', async () => {
-    const loanType = document.getElementById('loanTypeSelect').value;
-    try {
-        showLoading();
-        const response = await axios.get(`${apiUrl}/loans?status=${loanType}`);
+        const response = await axios.get(`${apiUrl}/loan`);
         displayPayload(response.data, formatLoan, 'loansList');
     } catch (error) {
         displayMessage(error.response?.data?.msg || 'Failed to retrieve loans.');
     } finally {
         hideLoading();
     }
-});
-
-// Get all customers based on selected type
-document.getElementById('getCustomersBtn').addEventListener('click', async () => {
-    const customerType = document.getElementById('customerTypeSelect').value;
-    try {
-        showLoading();
-        const response = await axios.get(`${apiUrl}/customers?status=${customerType}`);
-        displayPayload(response.data, formatCustomer, 'customersList');
-    } catch (error) {
-        displayMessage(error.response?.data?.msg || 'Failed to retrieve customers.');
-    } finally {
-        hideLoading();
-    }
-});
-
-// Return loan
-document.getElementById('returnLoanForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const loanId = document.getElementById('returnLoanId').value.trim();
-
-    if (!loanId) {
-        displayMessage('Loan ID is required to return a loan.');
-        return;
-    }
-
-    try {
-        showLoading();
-        const response = await axios.post(`${apiUrl}/return/${loanId}`);
-        displayMessage(response.data.message || 'Loan returned successfully.');
-    } catch (error) {
-        displayMessage(error.response?.data?.error || 'Failed to return loan.');
-    } finally {
-        hideLoading();
-    }
-});
-
-// Initialize Bootstrap toasts on page load
-document.addEventListener('DOMContentLoaded', () => {
-    const toastElList = [].slice.call(document.querySelectorAll('.toast'));
-    const toastList = toastElList.map(function (toastEl) {
-        return new bootstrap.Toast(toastEl);
-    });
 });

@@ -1,0 +1,13 @@
+.loading-indicator {
+    position: fixed; /* Fixed position */
+    top: 50%; /* Center vertically */
+    left: 50%; /* Center horizontally */
+    transform: translate(-50%, -50%); /* Adjust to center */
+    z-index: 1050; /* Ensure it is above other content */
+    display: none; /* Hide by default */
+}
+.section-title {
+    margin-top: 30px;
+    margin-bottom: 20px;
+    color: #007bff;
+}

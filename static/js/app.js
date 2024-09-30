@@ -1,4 +1,4 @@
-const apiUrl = 'http://localhost:5000'; // Replace with your API URL
+const apiUrl = 'https://flask-project-a035.onrender.com'; // Replace with your API URL
 
 // Function to store token in local storage
 function storeToken(token) {

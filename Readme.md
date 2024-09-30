@@ -1,3 +1,4 @@
+
 # Flask-Based Library Management System
 
 ## Project Overview
@@ -86,3 +87,60 @@ Unit tests are implemented to ensure functionality, including:
    ```bash
    git clone https://github.com/yourusername/library-management-system.git
    cd library-management-system
+   ```
+
+2. Create a virtual environment:
+   ```bash
+   python -m venv venv
+   ```
+
+3. Activate the virtual environment:
+   - On Windows:
+     ```bash
+     venv\Scripts\activate
+     ```
+   - On macOS/Linux:
+     ```bash
+     source venv/bin/activate
+     ```
+
+4. Install the required packages:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+5. Set up the database:
+   ```bash
+   flask db upgrade  # Run migrations to set up the database
+   ```
+
+6. Seed the database with initial data:
+   ```bash
+   flask seed  # Command to seed the database with sample data
+   ```
+
+7. Run the application:
+   ```bash
+   flask run
+   ```
+
+8. Access the application in your browser at:
+   ```
+   http://127.0.0.1:5000
+   ```
+
+## Usage
+
+- Navigate through the application using the navbar.
+- Add new books or customers using the provided forms.
+- Loan and return books as needed.
+- Use the search functionality to find specific records quickly.
+- View logs for recent activities and server status.
+
+## Contributing
+
+Contributions are welcome! If you have suggestions for improvements or want to report bugs, please open an issue or submit a pull request.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.

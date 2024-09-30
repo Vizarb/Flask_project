@@ -25,17 +25,6 @@
     <div class="container my-5">
         <h1 class="text-center mb-4">Library System</h1>
 
-        <div id="toastContainer" aria-live="polite" aria-atomic="true"
-            style="position: fixed; top: 20px; right: 20px; z-index: 1050;">
-            <div class="toast" id="messageToast" role="alert" aria-live="assertive" aria-atomic="true">
-                <div class="toast-header">
-                    <strong class="me-auto">Message</strong>
-                    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-                </div>
-                <div class="toast-body" id="toastBody"></div>
-            </div>
-        </div>
-
         <div class="card">
             <div class="card-body">
                 <h2 class="section-title">User Registration</h2>
@@ -47,8 +36,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="registerPassword" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="registerPassword" placeholder="Password"
-                            required>
+                        <input type="password" class="form-control" id="registerPassword" placeholder="Password" required>
                         <span class="text-danger" id="passwordError"></span>
                     </div>
                     <button type="submit" class="btn btn-primary">Register</button>
@@ -73,8 +61,7 @@
                 <form id="createBookForm" class="mb-4">
                     <input type="text" class="form-control mb-3" id="bookName" placeholder="Book Name" required>
                     <input type="text" class="form-control mb-3" id="bookAuthor" placeholder="Author" required>
-                    <input type="number" class="form-control mb-3" id="yearPublished" placeholder="Year Published"
-                        required>
+                    <input type="number" class="form-control mb-3" id="yearPublished" placeholder="Year Published" required>
                     <select class="form-control mb-3" id="loanTimeType" required>
                         <option value="TEN_DAYS">10 Days</option>
                         <option value="FIVE_DAYS">5 Days</option>
@@ -140,8 +127,7 @@
                 <h2 class="section-title">Register Customer</h2>
                 <form id="registerCustomerForm" class="mb-4">
                     <input type="text" class="form-control mb-3" id="customerName" placeholder="Full Name" required>
-                    <input type="email" class="form-control mb-3" id="customerEmail" placeholder="Customer Email"
-                        required>
+                    <input type="email" class="form-control mb-3" id="customerEmail" placeholder="Customer Email" required>
                     <select class="form-control mb-3" id="customerCity" required>
                         <option value="" disabled selected>Select City</option>
                         <option value="TEL_AVIV">Tel Aviv</option>
@@ -170,22 +156,21 @@
                     <option value="inactive">Inactive Customers</option>
                     <option value="all">All Customers</option>
                 </select>
-                <button id="getCustomersBtn" class="btn btn-primary">Get All Customers</button id="customersList"
-                    class="mt-3">
+                <button id="getCustomersBtn" class="btn btn-primary">Get All Customers</button>
+                <div id="customersList" class="mt-3"></div>
             </div>
         </div>
-    </div>
 
-    <div class="card">
-        <div class="card-body">
-            <h2 class="section-title">Search Customer</h2>
-            <form id="searchCustomerForm" class="mb-4">
-                <input type="text" class="form-control mb-3" id="searchCustomerName" placeholder="Customer Name"
-                    required>
-                <button type="submit" class="btn btn-primary">Search</button>
-            </form>
+        <div class="card">
+            <div class="card-body">
+                <h2 class="section-title">Search Customer</h2>
+                <form id="searchCustomerForm" class="mb-4">
+                    <input type="text" class="
+                    form-control mb-3" id="searchCustomerName" placeholder="Customer Name" required>
+                    <button type="submit" class="btn btn-primary">Search</button>
+                </form>
+            </div>
         </div>
-    </div>
     </div>
 
     <!-- Include the consolidated script.js file -->

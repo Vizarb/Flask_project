@@ -44,15 +44,35 @@ class City(Enum):
     TEL_AVIV = "Tel Aviv"
     JERUSALEM = "Jerusalem"
     HAIFA = "Haifa"
+    RISHON_LEZION = "Rishon Lezion"
+    NETANYA = "Netanya"
+    BEER_SHEVA = "Beer Sheva"
+    ASHDOD = "Ashdod"
+    ASHKELON = "Ashkelon"
     EILAT = "Eilat"
+    PETAH_TIKVA = "Petah Tikva"
 
 class LoanType(Enum):
-    TEN_DAYS = 10
-    FIVE_DAYS = 5
-    TWO_DAYS = 2
+    TEN_DAYS = "10 days"
+    FIVE_DAYS = "5 days"
+    TWO_DAYS = "2 days"
+    FOURTEEN_DAYS = "14 days"
+    SEVEN_DAYS = "7 days"
+    ONE_DAY = "1 day"
+
+class BookCategory(Enum):
+    HIGH_FANTASY = "high fantasy"
+    SCIENCE_FICTION = "science fiction"
+    MYSTERY = "mystery"
+    NON_FICTION = "non-fiction"
+    ROMANCE = "romance"
+    THRILLER = "thriller"
+    BIOGRAPHY = "biography"
+    FANTASY = "fantasy"
+    HISTORICAL_FICTION = "historical fiction"
+    YOUNG_ADULT = "young adult"
 
 # Define models for User, Books, Customers, Loans, and Log
-
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -69,7 +89,6 @@ class User(db.Model):
     def __repr__(self):
         return f'<User {self.username}>'
 
-
 class TokenBlacklist(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     jti = db.Column(db.String(36), unique=True, nullable=False)  # JWT ID
@@ -78,7 +97,6 @@ class TokenBlacklist(db.Model):
     def __repr__(self):
         return f'<TokenBlacklist {self.jti}>'
 
-
 class Books(db.Model):
     """Model representing a book in the library."""
     id = db.Column(db.Integer, primary_key=True)
@@ -86,6 +104,7 @@ class Books(db.Model):
     author = db.Column(db.String(80), nullable=False)
     year_published = db.Column(db.Integer, nullable=False)
     loan_time_type = db.Column(db.Enum(LoanType), nullable=False)
+    category = db.Column(db.Enum(BookCategory), nullable=False)  # Added category field
     is_active = db.Column(db.Boolean, default=True)
     is_loaned = db.Column(db.Boolean, default=False)
 
@@ -100,10 +119,10 @@ class Books(db.Model):
             'author': self.author,
             'year_published': self.year_published,
             'loan_time_type': self.loan_time_type.name,
+            'category': self.category.name,  # Include category in dict
             'is_active': self.is_active,
             'is_loaned': self.is_loaned
         }
-
 
 class Customers(db.Model):
     """Model representing a customer of the library."""
@@ -127,7 +146,6 @@ class Customers(db.Model):
             'age': self.age,
             'is_active': self.is_active
         }
-
 
 class Loans(db.Model):
     """Model representing a loan of a book."""
@@ -172,8 +190,6 @@ def log_message(level, message):
     db.session.add(new_log)
     db.session.commit()
 
-
-
 def toggle_status(model_class, identifier_field, identifier_value):
     """Toggle the active status of a specific record."""
     record = model_class.query.filter(getattr(model_class, identifier_field) == identifier_value).first()
@@ -189,7 +205,6 @@ def toggle_status(model_class, identifier_field, identifier_value):
 
 def search_records(model_class, identifier_field, identifier_value):
     """Search for records in the database using case-insensitive matching."""
-    # Validate input
     if not identifier_value:
         log_message('WARNING', "Identifier value is empty.")
         abort(400, description="Identifier value cannot be empty.")
@@ -208,20 +223,17 @@ def is_valid_email_regex(email):
     return re.match(pattern, email) is not None
 
 def validate_fields(data, required_fields, enum_fields=None):
-    # Check for required fields
     missing_fields = [field for field in required_fields if field not in data]
     if missing_fields:
         log_message('WARNING', f"Missing required fields: {missing_fields}")
         abort(400, description=f"Missing required fields: {', '.join(missing_fields)}")
 
-    # Validate enum fields
     if enum_fields:
         for field, enum_class in enum_fields.items():
             if field in data and data[field] not in enum_class.__members__:
                 log_message('ERROR', f"Invalid value for {field}: {data[field]}")
                 abort(400, description=f"Invalid value for {field}. Must be one of: {', '.join(enum_class.__members__.keys())}.")
 
-    # Validate email format if the email field is in the data
     if 'email' in data and not is_valid_email_regex(data['email']):
         log_message('ERROR', f"Invalid email format: {data['email']}")
         abort(400, description="Invalid email format.")
@@ -251,8 +263,6 @@ def get_records(model_class, status, eager_load=None):
 
     return records
 
-
-
 # Routes for Auth
 @app.route('/register', methods=['POST'])
 def register():
@@ -260,19 +270,15 @@ def register():
     username = data.get('username')
     password = data.get('password')
 
-    # Validate required fields
     if not username or not password:
         return jsonify({"msg": "Username and password are required."}), 400
     
-    # Check if the user already exists
     existing_user = User.query.filter_by(username=username).first()
     if existing_user:
         return jsonify({"msg": "User already exists"}), 400
 
-    # Hash the password using werkzeug.security
     hashed_password = generate_password_hash(password)
 
-    # Create a new user
     new_user = User(username=username, password_hash=hashed_password)
     db.session.add(new_user)
     db.session.commit()
@@ -287,7 +293,6 @@ def login():
     
     user = User.query.filter_by(username=username).first()
     
-    # Check if user exists and password is correct
     if user and check_password_hash(user.password_hash, password):
         access_token = create_access_token(identity=user.id)
         return jsonify(access_token=access_token), 200
@@ -297,8 +302,7 @@ def login():
 @app.route('/logout', methods=['POST'])
 @jwt_required()
 def logout():
-    jti = get_jwt()['jti']  # Get the JWT ID
-    # Add the token to the blacklist
+    jti = get_jwt()['jti']  
     db.session.add(TokenBlacklist(jti=jti))
     db.session.commit()
     return jsonify({"msg": "User has been logged out."}), 200
@@ -307,7 +311,7 @@ def logout():
 @jwt_required()
 def protected():
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)  # Fetch the user from the database
+    user = User.query.get(user_id)  
     if user is None:
         return jsonify({"msg": "User not found."}), 404
     
@@ -321,19 +325,17 @@ def check_user(username):
     else:
         return jsonify(msg='User does not exist'), 404
 
-
 # Routes for books
 @app.route('/book', methods=['POST'])
-@jwt_required()  # Require authentication
+@jwt_required()  
 def create_book():
     """Create a new book in the library."""
     data = request.json
     log_message('INFO', f"Received data for book creation: {data}")
 
-    required_fields = ['name', 'author', 'year_published', 'loan_time_type']
+    required_fields = ['name', 'author', 'year_published', 'loan_time_type', 'category']  # Updated to include category
     enum_fields = {'loan_time_type': LoanType}
 
-    # Validate required and enum fields
     validate_fields(data, required_fields, enum_fields)
 
     new_book = Books(
@@ -341,6 +343,7 @@ def create_book():
         author=data['author'],
         year_published=data['year_published'],
         loan_time_type=LoanType[data['loan_time_type']],
+        category=data['category'],  # New category field
         is_loaned=data.get('is_loaned', False)
     )
 
@@ -374,7 +377,6 @@ def search_author():
 
     return search_records(Books, 'author', author)
 
-# Routes for books
 @app.route('/books', methods=['GET'])
 def get_books():
     """Retrieve books based on specified status: active, inactive, or all."""
@@ -480,6 +482,10 @@ def delete_customer(email):
     if customer is None:
         log_message('WARNING', f"Customer not found for deletion: {email}")
         abort(404, description="Customer not found.")
+    
+    if customer.loans:  # Check if there are any associated loans
+        log_message('WARNING', f"Cannot delete customer with active loans: {email}")
+        abort(400, description="Customer cannot be deleted while having active loans.")
 
     db.session.delete(customer)
     db.session.commit()
@@ -487,6 +493,7 @@ def delete_customer(email):
     log_message('INFO', f"Deleted customer: {email}")
     return jsonify({'message': f"Customer '{email}' deleted successfully."}), 200
 
+# Routes for loans
 @app.route('/loan', methods=['POST'])
 @jwt_required()
 def create_loan():
@@ -549,6 +556,7 @@ def delete_loan(loan_id):
 @app.route('/return/<int:loan_id>', methods=['POST'])
 @jwt_required()
 def return_loan(loan_id):
+    """Return a loan by its ID."""
     loan = Loans.query.get(loan_id)
     if loan is None:
         log_message('WARNING', f"Loan not found: {loan_id}")
@@ -597,36 +605,50 @@ def seed_database():
     """Seed the database with initial data."""
     db.create_all()  # Create all tables if they don't exist
 
-    # Check if there are already books in the database
+    # Seed books
     if Books.query.count() == 0:
-        # Add some initial books
         initial_books = [
-            Books(name='1984', author='George Orwell', year_published=1949, loan_time_type=LoanType.TEN_DAYS),
-            Books(name='Brave New World', author='Aldous Huxley', year_published=1932, loan_time_type=LoanType.FIVE_DAYS),
-            Books(name='The Catcher in the Rye', author='J.D. Salinger', year_published=1951, loan_time_type=LoanType.TWO_DAYS)
+            Books(name='1984', author='George Orwell', year_published=1949, loan_time_type=LoanType.TEN_DAYS, category=BookCategory.SCIENCE_FICTION),
+            Books(name='Brave New World', author='Aldous Huxley', year_published=1932, loan_time_type=LoanType.FIVE_DAYS, category=BookCategory.SCIENCE_FICTION),
+            Books(name='The Catcher in the Rye', author='J.D. Salinger', year_published=1951, loan_time_type=LoanType.TWO_DAYS, category=BookCategory.MYSTERY),
+            Books(name='The Hobbit', author='J.R.R. Tolkien', year_published=1937, loan_time_type=LoanType.TEN_DAYS, category=BookCategory.HIGH_FANTASY),
+            Books(name='Pride and Prejudice', author='Jane Austen', year_published=1813, loan_time_type=LoanType.FIVE_DAYS, category=BookCategory.ROMANCE),
+            Books(name='Sapiens', author='Yuval Noah Harari', year_published=2011, loan_time_type=LoanType.TWO_DAYS, category=BookCategory.NON_FICTION),
+            Books(name='Dune', author='Frank Herbert', year_published=1965, loan_time_type=LoanType.TEN_DAYS, category=BookCategory.SCIENCE_FICTION),
+            Books(name='The Great Gatsby', author='F. Scott Fitzgerald', year_published=1925, loan_time_type=LoanType.FIVE_DAYS, category=BookCategory.MYSTERY),
+            Books(name='Moby Dick', author='Herman Melville', year_published=1851, loan_time_type=LoanType.TWO_DAYS, category=BookCategory.NON_FICTION),
+            Books(name='Wuthering Heights', author='Emily Brontë', year_published=1847, loan_time_type=LoanType.TEN_DAYS, category=BookCategory.ROMANCE)
         ]
         db.session.bulk_save_objects(initial_books)
         db.session.commit()
         log_message('INFO', "Database seeded with initial books.")
 
-    # Check if there are already customers in the database
+    # Seed customers
     if Customers.query.count() == 0:
-        # Add some initial customers
         initial_customers = [
             Customers(full_name='John Doe', email='john@example.com', city=City.TEL_AVIV, age=30),
-            Customers(full_name='Jane Smith', email='jane@example.com', city=City.JERUSALEM, age=28)
+            Customers(full_name='Jane Smith', email='jane@example.com', city=City.JERUSALEM, age=28),
+            Customers(full_name='Alice Johnson', email='alice@example.com', city=City.HAIFA, age=25),
+            Customers(full_name='Bob Brown', email='bob@example.com', city=City.RISHON_LEZION, age=35),
+            Customers(full_name='Charlie Davis', email='charlie@example.com', city=City.NETANYA, age=22),
+            Customers(full_name='Diana Evans', email='diana@example.com', city=City.BEER_SHEVA, age=27),
+            Customers(full_name='Ethan Green', email='ethan@example.com', city=City.ASHDOD, age=31),
+            Customers(full_name='Fiona Harris', email='fiona@example.com', city=City.ASHKELON, age=29),
+            Customers(full_name='George King', email='george@example.com', city=City.JERUSALEM, age=26),
+            Customers(full_name='Hannah Lee', email='hannah@example.com', city=City.TEL_AVIV, age=24)
         ]
         db.session.bulk_save_objects(initial_customers)
         db.session.commit()
         log_message('INFO', "Database seeded with initial customers.")
 
-    # Check if there are already loans in the database
+    # Seed loans
     if Loans.query.count() == 0:
-        # Create initial loans assuming there are existing books and customers
         initial_loans = [
             Loans(customer_id=1, book_id=1, loan_time_type=LoanType.TEN_DAYS, return_date=datetime.utcnow() + timedelta(days=10)),
-            Loans(customer_id=1, book_id=2, loan_time_type=LoanType.FIVE_DAYS, return_date=datetime.utcnow() + timedelta(days=5)),
-            Loans(customer_id=2, book_id=3, loan_time_type=LoanType.TWO_DAYS, return_date=datetime.utcnow() + timedelta(days=2))
+            Loans(customer_id=2, book_id=2, loan_time_type=LoanType.FIVE_DAYS, return_date=datetime.utcnow() + timedelta(days=5)),
+            Loans(customer_id=3, book_id=3, loan_time_type=LoanType.TWO_DAYS, return_date=datetime.utcnow() + timedelta(days=2)),
+            Loans(customer_id=4, book_id=4, loan_time_type=LoanType.TEN_DAYS, return_date=datetime.utcnow() + timedelta(days=10)),
+            Loans(customer_id=5, book_id=5, loan_time_type=LoanType.FIVE_DAYS, return_date=datetime.utcnow() + timedelta(days=5))
         ]
         db.session.bulk_save_objects(initial_loans)
         db.session.commit()
@@ -636,4 +658,3 @@ if __name__ == '__main__':
     with app.app_context():
         seed_database()  # Seed the database when starting the app
     app.run(debug=True)
-

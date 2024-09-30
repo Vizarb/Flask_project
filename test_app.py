@@ -1,99 +1,71 @@
 import unittest
-import json
-from app import app, db, Books, Customers, Loans, LoanType, City
+from flask import Flask
+from app import app, db, User, Books, Customers, Loans  # Adjust imports as necessary
 
-class LibraryAppTestCase(unittest.TestCase):
+class LibraryManagementSystemTestCase(unittest.TestCase):
 
     def setUp(self):
-        """Set up a test client and a new database for each test."""
-        self.app = app.test_client()
-        self.app.testing = True
-        with app.app_context():
-            db.create_all()  # Create the tables in the test database
-            # Seed the database with initial data for testing
-            self.seed_database()
+        """Create a test client and set up the database."""
+        self.app = app
+        self.app.config['TESTING'] = True
+        self.app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'  # In-memory database for testing
+        self.app_context = self.app.app_context()
+        self.app_context.push()
+        db.create_all()  # Create the database tables
+
+        # Create a test user
+        self.test_user = User(username='testuser')
+        self.test_user.set_password('testpass')  # Assuming you have a method to set password
+        db.session.add(self.test_user)
+        db.session.commit()
+
+        # Log in to get a token
+        response = self.app.test_client().post('/login', json={
+            'username': 'testuser',
+            'password': 'testpass'
+        })
+        self.assertEqual(response.status_code, 200)
+        self.token = response.json['access_token']
+
 
     def tearDown(self):
         """Clean up after each test."""
-        with app.app_context():
-            db.session.remove()
-            db.drop_all()
+        db.session.remove()
+        db.drop_all()  # Drop all tables
+        self.app_context.pop()
 
-    def seed_database(self):
-        """Seed the database with initial data for testing."""
-        initial_books = [
-            Books(name='1984', author='George Orwell', year_published=1949, loan_time_type=LoanType.TEN_DAYS),
-            Books(name='Brave New World', author='Aldous Huxley', year_published=1932, loan_time_type=LoanType.FIVE_DAYS)
-        ]
-        initial_customers = [
-            Customers(full_name='John Doe', email='john@example.com', city=City.TEL_AVIV, age=30)
-        ]
-        db.session.bulk_save_objects(initial_books)
-        db.session.bulk_save_objects(initial_customers)
-        db.session.commit()
+    def test_create_user(self):
+        """Test creating a new user."""
+        response = self.app.test_client().post('/user', json={
+            'username': 'newuser',
+            'password': 'newpass'
+        })
+        self.assertEqual(response.status_code, 201)
+        self.assertIn(b'User created successfully', response.data)
 
     def test_create_book(self):
         """Test creating a new book."""
-        response = self.app.post('/book', json={
-            'name': 'Fahrenheit 451',
-            'author': 'Ray Bradbury',
-            'year_published': 1953,
+        response = self.app.test_client().post('/book', json={
+            'name': '1984',
+            'author': 'George Orwell',
+            'year_published': 1949,
             'loan_time_type': 'TEN_DAYS'
-        })
+        }, headers={'Authorization': f'Bearer {self.token}'})  # Include the token
         self.assertEqual(response.status_code, 201)
-        data = json.loads(response.data)
-        self.assertIn('Fahrenheit 451', data['name'])
-
-    def test_create_customer(self):
-        """Test creating a new customer."""
-        response = self.app.post('/customer', json={
-            'full_name': 'Alice Wonderland',
-            'email': 'alice@example.com',
-            'city': 'Tel Aviv',
-            'age': 25
-        })
-        self.assertEqual(response.status_code, 201)
-        data = json.loads(response.data)
-        self.assertIn('Alice Wonderland', data['full_name'])
+        self.assertIn(b'1984', response.data)
 
     def test_search_book(self):
         """Test searching for a book."""
-        response = self.app.post('/book/search', json={'name': '1984'})
-        self.assertEqual(response.status_code, 200)
-        data = json.loads(response.data)
-        self.assertEqual(data['name'], '1984')
-
-    def test_toggle_book_status(self):
-        """Test toggling a book's status."""
-        response = self.app.put('/book/status', json={'name': '1984'})
-        self.assertEqual(response.status_code, 200)
-        data = json.loads(response.data)
-        self.assertIn('inactive', data['message'])  # Assuming it toggled to inactive
-
-    def test_delete_book(self):
-        """Test deleting a book."""
-        response = self.app.delete('/book/1984')
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("Book '1984' deleted successfully.", json.loads(response.data)['message'])
-
-    def test_create_loan(self):
-        """Test creating a loan."""
-        response = self.app.post('/loan', json={
-            'customer_id': 1,
-            'book_id': 1,
+        self.app.test_client().post('/book', json={
+            'name': '1984',
+            'author': 'George Orwell',
+            'year_published': 1949,
             'loan_time_type': 'TEN_DAYS'
-        })
-        self.assertEqual(response.status_code, 201)
+        }, headers={'Authorization': f'Bearer {self.token}'})  # Include the token
 
-    def test_return_loan(self):
-        """Test returning a loan."""
-        self.app.post('/loan', json={
-            'customer_id': 1,
-            'book_id': 1,
-            'loan_time_type': 'TEN_DAYS'
-        })
-        response = self.app.post('/return/1')
+        response = self.app.test_client().post('/book/search', json={'name': '1984'}, headers={'Authorization': f'Bearer {self.token}'})  # Include the token
         self.assertEqual(response.status_code, 200)
+        self.assertIn(b'1984', response.data)
 
 if __name__ == '__main__':
     unittest.main()

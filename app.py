@@ -5,9 +5,9 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, get_jwt, jwt_required, get_jwt_identity
-import bcrypt  # For password hashing
 from sqlalchemy.orm import joinedload
-
+from werkzeug.security import generate_password_hash, check_password_hash
+import re
 
 # Initialize the Flask application
 app = Flask(__name__)
@@ -56,7 +56,19 @@ class LoanType(Enum):
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(128), nullable=False)
+    password_hash = db.Column(db.String(128), nullable=False)  # Change this line
+
+    def set_password(self, password):
+        """Hashes the password and stores it in the database."""
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        """Checks if the provided password matches the hashed password."""
+        return check_password_hash(self.password_hash, password)
+
+    def __repr__(self):
+        return f'<User {self.username}>'
+
 
 class TokenBlacklist(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -160,6 +172,8 @@ def log_message(level, message):
     db.session.add(new_log)
     db.session.commit()
 
+
+
 def toggle_status(model_class, identifier_field, identifier_value):
     """Toggle the active status of a specific record."""
     record = model_class.query.filter(getattr(model_class, identifier_field) == identifier_value).first()
@@ -173,16 +187,25 @@ def toggle_status(model_class, identifier_field, identifier_value):
     log_message('INFO', f"Toggled status for {model_class.__name__}: {identifier_value} (Active: {record.is_active})")
     return jsonify({'message': f"{model_class.__name__} '{identifier_value}' status updated to {'active' if record.is_active else 'inactive'}."}), 200
 
-def search_record(model_class, identifier_field, identifier_value):
-    """Search for a specific record in the database using case-insensitive matching."""
-    record = model_class.query.filter(getattr(model_class, identifier_field).ilike(f'%{identifier_value}%')).first()
-    
-    if record is None:
+def search_records(model_class, identifier_field, identifier_value):
+    """Search for records in the database using case-insensitive matching."""
+    # Validate input
+    if not identifier_value:
+        log_message('WARNING', "Identifier value is empty.")
+        abort(400, description="Identifier value cannot be empty.")
+
+    records = model_class.query.filter(getattr(model_class, identifier_field).ilike(f'%{identifier_value}%')).all()
+
+    if not records:
         log_message('WARNING', f"{model_class.__name__} not found: {identifier_value}")
         abort(404, description=f"{model_class.__name__} not found.")
 
-    log_message('INFO', f"Found {model_class.__name__}: {identifier_value}")
-    return jsonify(record.to_dict()), 200  # Assuming to_dict() converts the model to a dictionary
+    log_message('INFO', f"Found {len(records)} {model_class.__name__}(s) for: {identifier_value}")
+    return jsonify([record.to_dict() for record in records]), 200
+
+def is_valid_email_regex(email):
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
 
 def validate_fields(data, required_fields, enum_fields=None):
     # Check for required fields
@@ -198,11 +221,16 @@ def validate_fields(data, required_fields, enum_fields=None):
                 log_message('ERROR', f"Invalid value for {field}: {data[field]}")
                 abort(400, description=f"Invalid value for {field}. Must be one of: {', '.join(enum_class.__members__.keys())}.")
 
+    # Validate email format if the email field is in the data
+    if 'email' in data and not is_valid_email_regex(data['email']):
+        log_message('ERROR', f"Invalid email format: {data['email']}")
+        abort(400, description="Invalid email format.")
+
 def get_records(model_class, status, eager_load=None):
-    """Retrieve records based on specified status: active, deactivated, late, or all."""
-    if status not in ['active', 'deactivated', 'all', 'late']:
+    """Retrieve records based on specified status: active, inactive, late, or all."""
+    if status not in ['active', 'inactive', 'all', 'late']:
         log_message('WARNING', f"Invalid status parameter provided for {model_class.__name__.lower()}s.")
-        abort(400, description="Invalid status parameter. Use 'active', 'deactivated', 'all', or 'late'.")
+        abort(400, description="Invalid status parameter. Use 'active', 'inactive', 'all', or 'late'.")
 
     query = model_class.query
 
@@ -219,7 +247,7 @@ def get_records(model_class, status, eager_load=None):
     else:
         is_active = status == 'active'
         records = query.filter_by(is_active=is_active).all()
-        log_message('INFO', f"Retrieved all {'active' if is_active else 'deactivated'} {model_class.__name__.lower()}s.")
+        log_message('INFO', f"Retrieved all {'active' if is_active else 'inactive'} {model_class.__name__.lower()}s.")
 
     return records
 
@@ -236,16 +264,16 @@ def register():
     if not username or not password:
         return jsonify({"msg": "Username and password are required."}), 400
     
-        # Check if the user already exists
+    # Check if the user already exists
     existing_user = User.query.filter_by(username=username).first()
     if existing_user:
         return jsonify({"msg": "User already exists"}), 400
 
-    # Hash the password
-    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    
+    # Hash the password using werkzeug.security
+    hashed_password = generate_password_hash(password)
+
     # Create a new user
-    new_user = User(username=username, password=hashed_password)
+    new_user = User(username=username, password_hash=hashed_password)
     db.session.add(new_user)
     db.session.commit()
 
@@ -260,7 +288,7 @@ def login():
     user = User.query.filter_by(username=username).first()
     
     # Check if user exists and password is correct
-    if user and bcrypt.checkpw(password.encode('utf-8'), user.password.encode('utf-8')):
+    if user and check_password_hash(user.password_hash, password):
         access_token = create_access_token(identity=user.id)
         return jsonify(access_token=access_token), 200
 
@@ -332,7 +360,7 @@ def search_book():
         log_message('WARNING', "Book name is required for search.")
         abort(400, description="Book name is required for search.")
 
-    return search_record(Books, 'name', name)
+    return search_records(Books, 'name', name)
 
 @app.route('/author/search', methods=['POST'])
 def search_author():
@@ -344,17 +372,18 @@ def search_author():
         log_message('WARNING', "Book author is required for search.")
         abort(400, description="Book author is required for search.")
 
-    return search_record(Books, 'author', author)
+    return search_records(Books, 'author', author)
 
 # Routes for books
 @app.route('/books', methods=['GET'])
 def get_books():
-    """Retrieve books based on specified status: active, deactivated, or all."""
+    """Retrieve books based on specified status: active, inactive, or all."""
     status = request.args.get('status', default='active', type=str)
     books = get_records(Books, status)
     return jsonify([book.to_dict() for book in books]), 200
 
 @app.route('/book/status', methods=['PUT'])
+@jwt_required()
 def toggle_book_status():
     """Toggle the active status of a specific book using name from JSON."""
     data = request.json
@@ -367,6 +396,7 @@ def toggle_book_status():
     return toggle_status(Books, 'name', name)
 
 @app.route('/book/<name>', methods=['DELETE'])
+@jwt_required()
 def delete_book(name):
     """Delete a specific book by its name."""
     book = Books.query.filter_by(name=name).first()
@@ -382,6 +412,7 @@ def delete_book(name):
 
 # Routes for customers
 @app.route('/customer', methods=['POST'])
+@jwt_required()
 def create_customer():
     """Create a new customer."""
     data = request.json
@@ -407,6 +438,7 @@ def create_customer():
     return jsonify(new_customer.to_dict()), 201
 
 @app.route('/customer/status', methods=['PUT'])
+@jwt_required()
 def toggle_customer_status():
     """Toggle the active status of a specific customer using email from JSON."""
     data = request.json
@@ -430,13 +462,13 @@ def search_customer():
         abort(400, description="Email or Full name is required for search.")
 
     if email:
-        return search_record(Customers, 'email', email)
+        return search_records(Customers, 'email', email)
     elif full_name:
-        return search_record(Customers, 'full_name', full_name)
+        return search_records(Customers, 'full_name', full_name)
 
 @app.route('/customers', methods=['GET'])
 def get_customers():
-    """Retrieve customers based on specified status: active, deactivated, or all."""
+    """Retrieve customers based on specified status: active, inactive, or all."""
     status = request.args.get('status', default='active', type=str)
     customers = get_records(Customers, status)
     return jsonify([customer.to_dict() for customer in customers]), 200
@@ -494,8 +526,6 @@ def create_loan():
     log_message('INFO', f"Successfully created a new loan: {new_loan.id} for book ID: {data['book_id']}")
     return jsonify(new_loan.to_dict()), 201
 
-
-
 @app.route('/loan/<int:loan_id>', methods=['DELETE'])
 @jwt_required()
 def delete_loan(loan_id):
@@ -543,22 +573,24 @@ def return_loan(loan_id):
 
 @app.route('/loans', methods=['GET'])
 def get_loans():
-    """Retrieve loans based on specified status: active, deactivated, or late."""
+    """Retrieve loans based on specified status: active, inactive, or late."""
     status = request.args.get('status', default='active', type=str)
 
     # Use get_records to retrieve loans with related book and customer data
-    loans = get_records(Loans, status, eager_load=[joinedload(Loans.books), joinedload(Loans.customer)])
+    loans = get_records(Loans, status, eager_load=[joinedload(Loans.book), joinedload(Loans.customer)])
 
     # Transform loans to include books and customer data
     loan_data = []
     for loan in loans:
-        loan_info = loan.to_dict()
-        loan_info['books'] = loan.books.to_dict()  # Assuming `to_dict()` method exists in Book model
-        loan_info['customer'] = loan.customer.to_dict()  # Assuming `to_dict()` method exists in Customer model
+        loan_info = loan.to_dict()  # Convert loan to dictionary
+        
+        # Ensure book and customer are included if they exist
+        loan_info['book'] = loan.book.to_dict() if loan.book else None  # Access single book
+        loan_info['customer'] = loan.customer.to_dict() if loan.customer else None  # Access customer
+        loan_info['is_active'] = loan.is_active        
         loan_data.append(loan_info)
 
     return jsonify(loan_data), 200
-
 
 # Database seeding
 def seed_database():
@@ -587,6 +619,18 @@ def seed_database():
         db.session.bulk_save_objects(initial_customers)
         db.session.commit()
         log_message('INFO', "Database seeded with initial customers.")
+
+    # Check if there are already loans in the database
+    if Loans.query.count() == 0:
+        # Create initial loans assuming there are existing books and customers
+        initial_loans = [
+            Loans(customer_id=1, book_id=1, loan_time_type=LoanType.TEN_DAYS, return_date=datetime.utcnow() + timedelta(days=10)),
+            Loans(customer_id=1, book_id=2, loan_time_type=LoanType.FIVE_DAYS, return_date=datetime.utcnow() + timedelta(days=5)),
+            Loans(customer_id=2, book_id=3, loan_time_type=LoanType.TWO_DAYS, return_date=datetime.utcnow() + timedelta(days=2))
+        ]
+        db.session.bulk_save_objects(initial_loans)
+        db.session.commit()
+        log_message('INFO', "Database seeded with initial loans.")
 
 if __name__ == '__main__':
     with app.app_context():

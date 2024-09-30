@@ -1,6 +1,6 @@
 from enum import Enum
 import os
-from flask import Flask, jsonify, request, abort
+from flask import Flask, jsonify, render_template, request, abort
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 from flask_cors import CORS
@@ -275,6 +275,10 @@ def error_response(message, status_code):
         "status": "error",
         "message": message
     }), status_code
+
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 
 # Routes for Auth

@@ -263,6 +263,20 @@ def get_records(model_class, status, eager_load=None):
 
     return records
 
+def success_response(data, message=None):
+    return jsonify({
+        "status": "success",
+        "message": message,
+        "data": data
+    }), 200
+
+def error_response(message, status_code):
+    return jsonify({
+        "status": "error",
+        "message": message
+    }), status_code
+
+
 # Routes for Auth
 @app.route('/register', methods=['POST'])
 def register():

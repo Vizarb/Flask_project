@@ -11,7 +11,7 @@ import re
 
 # Initialize the Flask application
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///library.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 """
 FOR PROD!!!
@@ -19,8 +19,8 @@ import secrets
 
 app.config['SECRET_KEY'] = secrets.token_hex(16)  # Generates a random 32-character hex string
 """
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default_secret_key') 
-app.config['JWT_SECRET_KEY'] = app.config['SECRET_KEY']
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default_secret_key')
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', app.config['SECRET_KEY'])
 app.config['JWT_BLACKLIST_ENABLED'] = True
 app.config['JWT_BLACKLIST_TOKEN_CHECKS'] = ['access']
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)

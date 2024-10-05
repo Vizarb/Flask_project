@@ -184,11 +184,6 @@ class Log(db.Model):
         """Return a string representation of the Log entry."""
         return f'<Log {self.id}: {self.level} - {self.message}>'
 
-def log_message(level, message):
-    """Log a message to the Log model."""
-    new_log = Log(level=level, message=message)
-    db.session.add(new_log)
-    db.session.commit()
 
 def toggle_status(model_class, identifier_field, identifier_value):
     """Toggle the active status of a specific record."""
@@ -275,6 +270,12 @@ def error_response(message, status_code):
         "status": "error",
         "message": message
     }), status_code
+
+def log_message(level, message):
+    """Log a message to the Log model."""
+    new_log = Log(level=level, message=message)
+    db.session.add(new_log)
+    db.session.commit()
 
 @app.route('/')
 def index():

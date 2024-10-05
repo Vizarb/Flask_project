@@ -403,7 +403,7 @@ def get_books():
     books = get_records(Books, status)
     return jsonify([book.to_dict() for book in books]), 200
 
-@app.route('/book/status', methods=['PUT'])
+@app.route('/book/status', methods=['POST'])
 @jwt_required()
 def toggle_book_status():
     """Toggle the active status of a specific book using name from JSON."""
@@ -458,7 +458,7 @@ def create_customer():
     log_message('INFO', f"Successfully created a new customer: {new_customer.full_name} (ID: {new_customer.id})")
     return jsonify(new_customer.to_dict()), 201
 
-@app.route('/customer/status', methods=['PUT'])
+@app.route('/customer/status', methods=['POST'])
 @jwt_required()
 def toggle_customer_status():
     """Toggle the active status of a specific customer using email from JSON."""

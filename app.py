@@ -619,6 +619,24 @@ def get_loans():
 
     return jsonify(loan_data), 200
 
+def seed_superuser():
+    """Seed the superuser into the database if it doesn't already exist."""
+    username = 'admin'
+    password = os.environ.get('SUPERUSER_PASSWORD', 'default_secure_password')  # Fetch from env or use default
+
+    # Validate required fields
+    validate_fields({'username': username, 'password': password}, required_fields=['username', 'password'])
+
+    # Check for existing superuser
+    if User.query.filter_by(username=username).first() is None:
+        hashed_password = generate_password_hash(password)
+        superuser = User(username=username, password_hash=hashed_password)
+        db.session.add(superuser)
+        db.session.commit()
+        log_message('INFO', "Superuser created.")
+    else:
+        log_message('INFO', "Superuser already exists.")
+
 # Database seeding
 def seed_database():
     """Seed the database with initial data."""
@@ -673,7 +691,17 @@ def seed_database():
         db.session.commit()
         log_message('INFO', "Database seeded with initial loans.")
 
+    # Seed superuser
+    if User.query.count() == 0:
+        superuser = User(username='admin')
+        superuser.set_password('securepassword')  # Change this to a secure password
+        db.session.add(superuser)
+        db.session.commit()
+        log_message('INFO', "Superuser created.")
+
+
 if __name__ == '__main__':
     with app.app_context():
         seed_database()  # Seed the database when starting the app
+        seed_superuser()
     app.run(debug=True)

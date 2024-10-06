@@ -682,4 +682,4 @@ if __name__ == '__main__':
             seed_database()  # Ensure the database is seeded
         except Exception as e:
             print(f"Error seeding database: {e}")
-    app.run(debug=False)
+    app.run(debug=True)

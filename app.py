@@ -73,11 +73,18 @@ class BookCategory(Enum):
     HISTORICAL_FICTION = "historical fiction"
     YOUNG_ADULT = "young adult"
 
+from enum import Enum
+
+class UserRole(Enum):
+    CUSTOMER = "customer"
+    CLERK = "clerk"
+
 # Define models for User, Books, Customers, Loans, and Log
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)  # Change this line
+    role = db.Column(db.Enum(UserRole), nullable=False) 
 
     def set_password(self, password):
         """Hashes the password and stores it in the database."""
@@ -88,7 +95,7 @@ class User(db.Model):
         return check_password_hash(self.password_hash, password)
 
     def __repr__(self):
-        return f'<User {self.username}>'
+        return f'<User {self.username}>, Role: {self.role.name}>'
 
 class TokenBlacklist(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -281,38 +288,56 @@ def log_message(level, message):
 # Routes for Auth
 @app.route('/register', methods=['POST'])
 def register():
-    data = request.json
-    username = data.get('username')
-    password = data.get('password')
-
-    if not username or not password:
-        return jsonify({"msg": "Username and password are required."}), 400
+    data = request.get_json()
     
+    required_fields = ['username', 'password', 'role']
+    enum_fields = {'role': UserRole}
+
+    validate_fields(data, required_fields, enum_fields)
+
+    username = data['username']
+    password = data['password']
+    role = UserRole[data.get('role', 'CUSTOMER')]  # Set the role from the Enum # Default to 'CUSTOMER'
+
+    # Check if the user already exists
     existing_user = User.query.filter_by(username=username).first()
     if existing_user:
+        log_message('WARNING', f"User registration failed: {username} already exists.")
         return jsonify({"msg": "User already exists"}), 400
 
-    hashed_password = generate_password_hash(password)
+    # Create a new user
+    new_user = User(username=username)
+    new_user.set_password(password)  # Hash the password
+    new_user.role = role  # Assign the role
 
-    new_user = User(username=username, password_hash=hashed_password)
+    # Add the new user to the session and commit
     db.session.add(new_user)
     db.session.commit()
 
+    log_message('INFO', f"User registered: {username} with role: {role.name}")
     return jsonify({"msg": "User registered successfully."}), 201
-
+    
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
     username = data.get('username')
     password = data.get('password')
-    
-    user = User.query.filter_by(username=username).first()
-    
-    if user and check_password_hash(user.password_hash, password):
-        access_token = create_access_token(identity=user.id)
-        return jsonify(access_token=access_token), 200
 
-    return jsonify({"msg": "Bad username or password"}), 401
+    # Validate that both username and password are provided
+    if not username or not password:
+        log_message('WARNING', "Login attempt with missing username or password.")
+        return jsonify({"msg": "Username and password are required."}), 400
+
+    user = User.query.filter_by(username=username).first()
+
+    if user and user.check_password(password):  # Using the method to check password
+        # Create access token with user's username and role
+        access_token = create_access_token(identity={"username": user.username, "role": user.role.name})
+        log_message('INFO', f"User logged in: {username} with role: {user.role.name}")
+        return jsonify(access_token=access_token, msg="Login successful."), 200
+
+    log_message('WARNING', f"Invalid login attempt for username: {username}")
+    return jsonify({"msg": "Invalid username or password."}), 401
 
 @app.route('/logout', methods=['POST'])
 @jwt_required()

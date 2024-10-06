@@ -40,7 +40,7 @@ def check_if_token_in_blacklist(jwt_header, jwt_payload):
     token = TokenBlacklist.query.filter_by(jti=jti).first()
     return token is not None  # Return True if the token is blacklisted
 
-# Define Enums for City and Loan Type
+# Define Enums
 class City(Enum):
     TEL_AVIV = "Tel Aviv"
     JERUSALEM = "Jerusalem"
@@ -73,13 +73,11 @@ class BookCategory(Enum):
     HISTORICAL_FICTION = "historical fiction"
     YOUNG_ADULT = "young adult"
 
-from enum import Enum
-
 class UserRole(Enum):
     CUSTOMER = "customer"
     CLERK = "clerk"
 
-# Define models for User, Books, Customers, Loans, and Log
+# Define models
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -140,6 +138,7 @@ class Customers(db.Model):
     city = db.Column(db.Enum(City), nullable=False)
     age = db.Column(db.Integer, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
+    role = db.Column(db.Enum(UserRole), default=UserRole.CUSTOMER, nullable=False)  # Added role field
 
     # Define a relationship to Loans
     loans = db.relationship('Loans', back_populates='customer')
@@ -152,7 +151,8 @@ class Customers(db.Model):
             'email': self.email,
             'city': self.city.name,
             'age': self.age,
-            'is_active': self.is_active
+            'is_active': self.is_active,
+            'role': self.role.name  # Include role in dict
         }
 
 class Loans(db.Model):
@@ -192,7 +192,7 @@ class Log(db.Model):
         """Return a string representation of the Log entry."""
         return f'<Log {self.id}: {self.level} - {self.message}>'
 
-
+# helper functions
 def toggle_status(model_class, identifier_field, identifier_value):
     """Toggle the active status of a specific record."""
     record = model_class.query.filter(getattr(model_class, identifier_field) == identifier_value).first()
@@ -630,7 +630,6 @@ def get_loans():
 
     return jsonify(loan_data), 200
 
-# Database seeding
 def seed_database():
     """Seed the database with initial data."""
     db.create_all()  # Create all tables if they don't exist
@@ -656,16 +655,16 @@ def seed_database():
     # Seed customers
     if Customers.query.count() == 0:
         initial_customers = [
-            Customers(full_name='John Doe', email='john@example.com', city=City.TEL_AVIV, age=30),
-            Customers(full_name='Jane Smith', email='jane@example.com', city=City.JERUSALEM, age=28),
-            Customers(full_name='Alice Johnson', email='alice@example.com', city=City.HAIFA, age=25),
-            Customers(full_name='Bob Brown', email='bob@example.com', city=City.RISHON_LEZION, age=35),
-            Customers(full_name='Charlie Davis', email='charlie@example.com', city=City.NETANYA, age=22),
-            Customers(full_name='Diana Evans', email='diana@example.com', city=City.BEER_SHEVA, age=27),
-            Customers(full_name='Ethan Green', email='ethan@example.com', city=City.ASHDOD, age=31),
-            Customers(full_name='Fiona Harris', email='fiona@example.com', city=City.ASHKELON, age=29),
-            Customers(full_name='George King', email='george@example.com', city=City.JERUSALEM, age=26),
-            Customers(full_name='Hannah Lee', email='hannah@example.com', city=City.TEL_AVIV, age=24)
+            Customers(full_name='John Doe', email='john@example.com', city=City.TEL_AVIV, age=30, role=UserRole.CUSTOMER),
+            Customers(full_name='Jane Smith', email='jane@example.com', city=City.JERUSALEM, age=28, role=UserRole.CUSTOMER),
+            Customers(full_name='Alice Johnson', email='alice@example.com', city=City.HAIFA, age=25, role=UserRole.CUSTOMER),
+            Customers(full_name='Bob Brown', email='bob@example.com', city=City.RISHON_LEZION, age=35, role=UserRole.CUSTOMER),
+            Customers(full_name='Charlie Davis', email='charlie@example.com', city=City.NETANYA, age=22, role=UserRole.CUSTOMER),
+            Customers(full_name='Diana Evans', email='diana@example.com', city=City.BEER_SHEVA, age=27, role=UserRole.CUSTOMER),
+            Customers(full_name='Ethan Green', email='ethan@example.com', city=City.ASHDOD, age=31, role=UserRole.CUSTOMER),
+            Customers(full_name='Fiona Harris', email='fiona@example.com', city=City.ASHKELON, age=29, role=UserRole.CUSTOMER),
+            Customers(full_name='George King', email='george@example.com', city=City.JERUSALEM, age=26, role=UserRole.CUSTOMER),
+            Customers(full_name='Hannah Lee', email='hannah@example.com', city=City.TEL_AVIV, age=24, role=UserRole.CUSTOMER)
         ]
         db.session.bulk_save_objects(initial_customers)
         db.session.commit()
@@ -686,33 +685,15 @@ def seed_database():
 
     # Seed superuser
     if User.query.count() == 0:
-        superuser = User(username='admin')
+        superuser = User(username='admin', role=UserRole.CLERK)  # Assign role to superuser
         superuser.set_password('securepassword')  # Change this to a secure password
         db.session.add(superuser)
         db.session.commit()
         log_message('INFO', "Superuser created.")
 
-def seed_superuser():
-    """Seed the superuser into the database if it doesn't already exist."""
-    username = 'admin'
-    password = os.environ.get('SUPERUSER_PASSWORD', 'default_secure_password')  # Fetch from env or use default
-
-    # Validate required fields
-    validate_fields({'username': username, 'password': password}, required_fields=['username', 'password'])
-
-    # Check for existing superuser
-    if User.query.filter_by(username=username).first() is None:
-        hashed_password = generate_password_hash(password)
-        superuser = User(username=username, password_hash=hashed_password)
-        db.session.add(superuser)
-        db.session.commit()
-        log_message('INFO', "Superuser created.")
-    else:
-        log_message('INFO', "Superuser already exists.")
 
 
 if __name__ == '__main__':
     with app.app_context():
         seed_database()  # Seed the database when starting the app
-        seed_superuser()
     app.run(debug=True)

@@ -613,10 +613,8 @@ def get_loans():
 
 def seed_database():
     """Seed the database with initial data."""
-    try:
-        db.create_all()  # Create all tables if they don't exist
-    except Exception as e:
-        print(f"Error creating database: {e}")
+    db.create_all()  # Create all tables if they don't exist
+
     # Seed books
     if Books.query.count() == 0:
         initial_books = [
@@ -678,8 +676,5 @@ def seed_database():
 
 if __name__ == '__main__':
     with app.app_context():
-        try:
-            seed_database()  # Ensure the database is seeded
-        except Exception as e:
-            print(f"Error seeding database: {e}")
+        seed_database()  # Seed the database when starting the app
     app.run(debug=True)

@@ -620,11 +620,11 @@ def seed_database():
     # Seed books
     if Books.query.count() == 0:
         initial_books = [
-            Books(name='1984', author='George Orwell', year_published=1949, loan_time_type=LoanType.TEN_DAYS, category=BookCategory.SCIENCE_FICTION),
-            Books(name='Brave New World', author='Aldous Huxley', year_published=1932, loan_time_type=LoanType.FIVE_DAYS, category=BookCategory.SCIENCE_FICTION),
-            Books(name='The Catcher in the Rye', author='J.D. Salinger', year_published=1951, loan_time_type=LoanType.TWO_DAYS, category=BookCategory.MYSTERY),
-            Books(name='The Hobbit', author='J.R.R. Tolkien', year_published=1937, loan_time_type=LoanType.TEN_DAYS, category=BookCategory.HIGH_FANTASY),
-            Books(name='Pride and Prejudice', author='Jane Austen', year_published=1813, loan_time_type=LoanType.FIVE_DAYS, category=BookCategory.ROMANCE),
+            Books(name='1984', author='George Orwell', year_published=1949, loan_time_type=LoanType.TEN_DAYS, category=BookCategory.SCIENCE_FICTION, is_loaned=True),
+            Books(name='Brave New World', author='Aldous Huxley', year_published=1932, loan_time_type=LoanType.FIVE_DAYS, category=BookCategory.SCIENCE_FICTION, is_loaned=True),
+            Books(name='The Catcher in the Rye', author='J.D. Salinger', year_published=1951, loan_time_type=LoanType.TWO_DAYS, category=BookCategory.MYSTERY, is_loaned=True),
+            Books(name='The Hobbit', author='J.R.R. Tolkien', year_published=1937, loan_time_type=LoanType.TEN_DAYS, category=BookCategory.HIGH_FANTASY, is_loaned=True),
+            Books(name='Pride and Prejudice', author='Jane Austen', year_published=1813, loan_time_type=LoanType.FIVE_DAYS, category=BookCategory.ROMANCE, is_loaned=True),
             Books(name='Sapiens', author='Yuval Noah Harari', year_published=2011, loan_time_type=LoanType.TWO_DAYS, category=BookCategory.NON_FICTION),
             Books(name='Dune', author='Frank Herbert', year_published=1965, loan_time_type=LoanType.TEN_DAYS, category=BookCategory.SCIENCE_FICTION),
             Books(name='The Great Gatsby', author='F. Scott Fitzgerald', year_published=1925, loan_time_type=LoanType.FIVE_DAYS, category=BookCategory.MYSTERY),
@@ -674,27 +674,7 @@ def seed_database():
         db.session.commit()
         log_message('INFO', "Superuser created.")
 
-def seed_superuser():
-    """Seed the superuser into the database if it doesn't already exist."""
-    username = 'admin'
-    password = os.environ.get('SUPERUSER_PASSWORD', 'default_secure_password')  # Fetch from env or use default
-
-    # Validate required fields
-    validate_fields({'username': username, 'password': password}, required_fields=['username', 'password'])
-
-    # Check for existing superuser
-    if User.query.filter_by(username=username).first() is None:
-        hashed_password = generate_password_hash(password)
-        superuser = User(username=username, password_hash=hashed_password)
-        db.session.add(superuser)
-        db.session.commit()
-        log_message('INFO', "Superuser created.")
-    else:
-        log_message('INFO', "Superuser already exists.")
-
-
 if __name__ == '__main__':
     with app.app_context():
         seed_database()  # Seed the database when starting the app
-        seed_superuser()
     app.run(debug=True)

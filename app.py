@@ -5,7 +5,7 @@ from flask import Flask, jsonify, request, abort
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta, timezone
 from flask_cors import CORS
-from flask_jwt_extended import JWTManager, create_access_token, get_jwt, jwt_required
+from flask_jwt_extended import JWTManager, create_access_token, create_refresh_token, get_jwt, jwt_required
 from sqlalchemy.orm import joinedload
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -25,6 +25,7 @@ app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', app.config['SECR
 app.config['JWT_BLACKLIST_ENABLED'] = True
 app.config['JWT_BLACKLIST_TOKEN_CHECKS'] = ['access']
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
+app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30)
 
 # Initialize SQLAlchemy
 db = SQLAlchemy(app)
@@ -79,7 +80,7 @@ class BookCategory(Enum):
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)  # Change this line
+    password_hash = db.Column(db.String(128), nullable=False)
 
     def set_password(self, password):
         """Hashes the password and stores it in the database."""
@@ -302,17 +303,25 @@ def register():
 
     return jsonify({"msg": "User registered successfully."}), 201
 
+@app.route('/refresh', methods=['POST'])
+@jwt_required(refresh=True)  # Requires a valid refresh token
+def refresh():
+    current_user = get_jwt()['sub']  # Get the user ID from the token
+    new_access_token = create_access_token(identity=current_user)  # Create a new access token
+    return jsonify(access_token=new_access_token), 200
+
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
     username = data.get('username')
     password = data.get('password')
-    
+
     user = User.query.filter_by(username=username).first()
-    
+
     if user and check_password_hash(user.password_hash, password):
         access_token = create_access_token(identity=user.id)
-        return jsonify(access_token=access_token), 200
+        refresh_token = create_refresh_token(identity=user.id) 
+        return jsonify(access_token=access_token, refresh_token=refresh_token), 200
 
     return jsonify({"msg": "Bad username or password"}), 401
 

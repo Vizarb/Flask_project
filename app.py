@@ -1,13 +1,14 @@
 from enum import Enum
 import os
-from flask import Flask, jsonify, render_template, request, abort
+import re
+from flask import Flask, jsonify, request, abort
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 from flask_cors import CORS
-from flask_jwt_extended import JWTManager, create_access_token, get_jwt, jwt_required, get_jwt_identity
+from flask_jwt_extended import JWTManager, create_access_token, get_jwt, jwt_required
 from sqlalchemy.orm import joinedload
 from werkzeug.security import generate_password_hash, check_password_hash
-import re
+
 
 # Initialize the Flask application
 app = Flask(__name__)
@@ -72,15 +73,11 @@ class BookCategory(Enum):
     HISTORICAL_FICTION = "historical fiction"
     YOUNG_ADULT = "young adult"
 
-class UserRole(Enum):
-    CUSTOMER = "customer"
-    CLERK = "clerk"
-
+# Define models for User, Books, Customers, Loans, and Log
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
-    role = db.Column(db.Enum(UserRole), default=UserRole.CLERK, nullable=False)  # Add role field
+    password_hash = db.Column(db.String(128), nullable=False)  # Change this line
 
     def set_password(self, password):
         """Hashes the password and stores it in the database."""
@@ -91,7 +88,7 @@ class User(db.Model):
         return check_password_hash(self.password_hash, password)
 
     def __repr__(self):
-        return f'<User {self.username}, Role: {self.role.name}>'
+        return f'<User {self.username}>'
 
 class TokenBlacklist(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -136,7 +133,6 @@ class Customers(db.Model):
     city = db.Column(db.Enum(City), nullable=False)
     age = db.Column(db.Integer, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
-    role = db.Column(db.Enum(UserRole), default=UserRole.CUSTOMER, nullable=False)  # Add role field
 
     # Define a relationship to Loans
     loans = db.relationship('Loans', back_populates='customer')
@@ -263,29 +259,24 @@ def get_records(model_class, status, eager_load=None):
 
     return records
 
-def success_response(data, message=None):
-    return jsonify({
-        "status": "success",
-        "message": message,
-        "data": data
-    }), 200
+# def success_response(data, message=None):
+#     return jsonify({
+#         "status": "success",
+#         "message": message,
+#         "data": data
+#     }), 200
 
-def error_response(message, status_code):
-    return jsonify({
-        "status": "error",
-        "message": message
-    }), status_code
+# def error_response(message, status_code):
+#     return jsonify({
+#         "status": "error",
+#         "message": message
+#     }), status_code
 
 def log_message(level, message):
     """Log a message to the Log model."""
     new_log = Log(level=level, message=message)
     db.session.add(new_log)
     db.session.commit()
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
 
 # Routes for Auth
 @app.route('/register', methods=['POST'])
@@ -330,16 +321,6 @@ def logout():
     db.session.add(TokenBlacklist(jti=jti))
     db.session.commit()
     return jsonify({"msg": "User has been logged out."}), 200
-
-@app.route('/protected', methods=['GET'])
-@jwt_required()
-def protected():
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)  
-    if user is None:
-        return jsonify({"msg": "User not found."}), 404
-    
-    return jsonify({"message": f"Hello user {user.username}!"}), 200
 
 @app.route('/check_user/<username>', methods=['GET'])
 def check_user(username):
@@ -624,24 +605,6 @@ def get_loans():
 
     return jsonify(loan_data), 200
 
-def seed_superuser():
-    """Seed the superuser into the database if it doesn't already exist."""
-    username = 'admin'
-    password = os.environ.get('SUPERUSER_PASSWORD', 'default_secure_password')  # Fetch from env or use default
-
-    # Validate required fields
-    validate_fields({'username': username, 'password': password}, required_fields=['username', 'password'])
-
-    # Check for existing superuser
-    if User.query.filter_by(username=username).first() is None:
-        hashed_password = generate_password_hash(password)
-        superuser = User(username=username, password_hash=hashed_password)
-        db.session.add(superuser)
-        db.session.commit()
-        log_message('INFO', "Superuser created.")
-    else:
-        log_message('INFO', "Superuser already exists.")
-
 # Database seeding
 def seed_database():
     """Seed the database with initial data."""
@@ -703,6 +666,24 @@ def seed_database():
         db.session.add(superuser)
         db.session.commit()
         log_message('INFO', "Superuser created.")
+
+def seed_superuser():
+    """Seed the superuser into the database if it doesn't already exist."""
+    username = 'admin'
+    password = os.environ.get('SUPERUSER_PASSWORD', 'default_secure_password')  # Fetch from env or use default
+
+    # Validate required fields
+    validate_fields({'username': username, 'password': password}, required_fields=['username', 'password'])
+
+    # Check for existing superuser
+    if User.query.filter_by(username=username).first() is None:
+        hashed_password = generate_password_hash(password)
+        superuser = User(username=username, password_hash=hashed_password)
+        db.session.add(superuser)
+        db.session.commit()
+        log_message('INFO', "Superuser created.")
+    else:
+        log_message('INFO', "Superuser already exists.")
 
 
 if __name__ == '__main__':

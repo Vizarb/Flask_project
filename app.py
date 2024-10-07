@@ -72,8 +72,6 @@ class BookCategory(Enum):
     HISTORICAL_FICTION = "historical fiction"
     YOUNG_ADULT = "young adult"
 
-from enum import Enum
-
 class UserRole(Enum):
     CUSTOMER = "customer"
     CLERK = "clerk"

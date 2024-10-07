@@ -3,7 +3,7 @@ import os
 import re
 from flask import Flask, jsonify, request, abort
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, get_jwt, jwt_required
 from sqlalchemy.orm import joinedload
@@ -12,7 +12,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 # Initialize the Flask application
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:////data/library.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///library.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 """
 FOR PROD!!!
@@ -248,7 +248,7 @@ def get_records(model_class, status, eager_load=None):
         query = query.options(*eager_load)
 
     if status == 'late':
-        current_time = datetime.utcnow()
+        current_time = datetime.now(timezone.utc)
         records = query.filter(model_class.return_date < current_time).all()
         log_message('INFO', f"Retrieved all late {model_class.__name__.lower()}s.")
     elif status == 'all':
@@ -529,7 +529,7 @@ def create_loan():
     days = int(loan_time_type.value.split()[0])  # Extract the number of days as integer
 
     # Calculate return date
-    return_date = datetime.utcnow() + timedelta(days=days)
+    return_date = datetime.now(timezone.utc) + timedelta(days=days)
 
     new_loan = Loans(
         customer_id=data['customer_id'],
@@ -579,7 +579,7 @@ def return_loan(loan_id):
         return jsonify({'error': 'Loan already returned'}), 400
 
     loan.is_active = False
-    loan.return_date = datetime.utcnow()  # Set the return date
+    loan.return_date = datetime.now(timezone.utc)  # Set the return date
 
     # Use relationship to access the book
     book = loan.book  # Now using the relationship
@@ -656,11 +656,11 @@ def seed_database():
     # Seed loans
     if Loans.query.count() == 0:
         initial_loans = [
-            Loans(customer_id=1, book_id=1, loan_time_type=LoanType.TEN_DAYS, return_date=datetime.utcnow() + timedelta(days=10)),
-            Loans(customer_id=2, book_id=2, loan_time_type=LoanType.FIVE_DAYS, return_date=datetime.utcnow() + timedelta(days=5)),
-            Loans(customer_id=3, book_id=3, loan_time_type=LoanType.TWO_DAYS, return_date=datetime.utcnow() + timedelta(days=2)),
-            Loans(customer_id=4, book_id=4, loan_time_type=LoanType.TEN_DAYS, return_date=datetime.utcnow() + timedelta(days=10)),
-            Loans(customer_id=5, book_id=5, loan_time_type=LoanType.FIVE_DAYS, return_date=datetime.utcnow() + timedelta(days=5))
+            Loans(customer_id=1, book_id=1, loan_time_type=LoanType.TEN_DAYS, return_date=datetime.now(timezone.utc) + timedelta(days=10)),
+            Loans(customer_id=2, book_id=2, loan_time_type=LoanType.FIVE_DAYS, return_date=datetime.now(timezone.utc) + timedelta(days=5)),
+            Loans(customer_id=3, book_id=3, loan_time_type=LoanType.TWO_DAYS, return_date=datetime.now(timezone.utc) + timedelta(days=2)),
+            Loans(customer_id=4, book_id=4, loan_time_type=LoanType.TEN_DAYS, return_date=datetime.now(timezone.utc) + timedelta(days=10)),
+            Loans(customer_id=5, book_id=5, loan_time_type=LoanType.FIVE_DAYS, return_date=datetime.now(timezone.utc) + timedelta(days=5))
         ]
         db.session.bulk_save_objects(initial_loans)
         db.session.commit()

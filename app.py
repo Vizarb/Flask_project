@@ -54,12 +54,14 @@ class City(Enum):
     PETAH_TIKVA = "Petah Tikva"
 
 class LoanType(Enum):
-    TEN_DAYS = "10 days"
-    FIVE_DAYS = "5 days"
-    TWO_DAYS = "2 days"
-    FOURTEEN_DAYS = "14 days"
-    SEVEN_DAYS = "7 days"
     ONE_DAY = "1 day"
+    TWO_DAYS = "2 days"
+    FIVE_DAYS = "5 days"
+    SEVEN_DAYS = "7 days"
+    TEN_DAYS = "10 days"
+    FOURTEEN_DAYS = "14 days"
+
+
 
 class BookCategory(Enum):
     HIGH_FANTASY = "high fantasy"
@@ -504,10 +506,9 @@ def delete_customer(email):
 def create_loan():
     """Create a new loan for a book."""
     data = request.json
-    log_message('INFO', f"Received data for loan creation: {data}")
-
     required_fields = ['customer_id', 'book_id', 'loan_time_type']
     enum_fields = {'loan_time_type': LoanType}
+    log_message('INFO', f"Received data for loan creation: {data}")
 
     # Validate required and enum fields
     validate_fields(data, required_fields, enum_fields)
@@ -523,11 +524,17 @@ def create_loan():
         log_message('ERROR', f"Customer not found: {data['customer_id']}")
         abort(404, description="Customer not found.")
 
-    return_date = datetime.utcnow() + timedelta(days=LoanType[data['loan_time_type']].value)
+    # Use the enum directly to get the number of days
+    loan_time_type = LoanType[data['loan_time_type']]
+    days = int(loan_time_type.value.split()[0])  # Extract the number of days as integer
+
+    # Calculate return date
+    return_date = datetime.utcnow() + timedelta(days=days)
+
     new_loan = Loans(
         customer_id=data['customer_id'],
         book_id=data['book_id'],
-        loan_time_type=LoanType[data['loan_time_type']],
+        loan_time_type=loan_time_type,
         return_date=return_date
     )
 

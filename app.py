@@ -1,9 +1,9 @@
 from enum import Enum
 import os
 import re
+from datetime import datetime, timedelta, timezone
 from flask import Flask, jsonify, request, abort
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, timedelta, timezone
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, create_refresh_token, get_jwt, jwt_required
 from sqlalchemy.orm import joinedload
@@ -325,6 +325,15 @@ def check_user(username):
     else:
         return jsonify(msg='User does not exist'), 404
 
+@app.route('/check_login', methods=['POST'])
+@jwt_required()
+def check_login():
+    """Check if the user is logged in and return their user ID."""
+    current_user_id = get_jwt()['sub']  # Get the user ID from the token
+
+    log_message('INFO', f"Checked login status for user ID: {current_user_id}")  # Log the login check
+    return jsonify(msg='User is logged in', user_id=current_user_id), 200
+
 # Routes for books
 @app.route('/book', methods=['POST'])
 @jwt_required()  
@@ -465,7 +474,7 @@ def search_customer():
 
     if email:
         return search_records(Customers, 'email', email)
-    elif full_name:
+    if full_name:
         return search_records(Customers, 'full_name', full_name)
 
 @app.route('/customers', methods=['GET'])

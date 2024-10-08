@@ -62,8 +62,6 @@ class LoanType(Enum):
     TEN_DAYS = "10 days"
     FOURTEEN_DAYS = "14 days"
 
-
-
 class BookCategory(Enum):
     HIGH_FANTASY = "high fantasy"
     SCIENCE_FICTION = "science fiction"
@@ -187,7 +185,6 @@ class Log(db.Model):
     def __repr__(self):
         """Return a string representation of the Log entry."""
         return f'<Log {self.id}: {self.level} - {self.message}>'
-
 
 def toggle_status(model_class, identifier_field, identifier_value):
     """Toggle the active status of a specific record."""

@@ -259,19 +259,6 @@ def get_records(model_class, status, eager_load=None):
 
     return records
 
-# def success_response(data, message=None):
-#     return jsonify({
-#         "status": "success",
-#         "message": message,
-#         "data": data
-#     }), 200
-
-# def error_response(message, status_code):
-#     return jsonify({
-#         "status": "error",
-#         "message": message
-#     }), status_code
-
 def log_message(level, message):
     """Log a message to the Log model."""
     new_log = Log(level=level, message=message)

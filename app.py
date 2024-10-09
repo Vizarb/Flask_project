@@ -234,7 +234,7 @@ def validate_fields(data, required_fields, enum_fields=None):
         log_message('ERROR', f"Invalid email format: {data['email']}")
         abort(400, description="Invalid email format.")
 
-def get_records(model_class, status, eager_load=None):
+def get_status(model_class, status, eager_load=None):
     """Retrieve records based on specified status: active, inactive, late, or all."""
     if status not in ['active', 'inactive', 'all', 'late']:
         log_message('WARNING', f"Invalid status parameter provided for {model_class.__name__.lower()}s.")
@@ -390,7 +390,7 @@ def search_author():
 def get_books():
     """Retrieve books based on specified status: active, inactive, or all."""
     status = request.args.get('status', default='active', type=str)
-    books = get_records(Books, status)
+    books = get_status(Books, status)
     return jsonify([book.to_dict() for book in books]), 200
 
 @app.route('/book/status', methods=['POST'])
@@ -481,7 +481,7 @@ def search_customer():
 def get_customers():
     """Retrieve customers based on specified status: active, inactive, or all."""
     status = request.args.get('status', default='active', type=str)
-    customers = get_records(Customers, status)
+    customers = get_status(Customers, status)
     return jsonify([customer.to_dict() for customer in customers]), 200
 
 @app.route('/customer/<email>', methods=['DELETE'])
@@ -598,8 +598,8 @@ def get_loans():
     """Retrieve loans based on specified status: active, inactive, or late."""
     status = request.args.get('status', default='active', type=str)
 
-    # Use get_records to retrieve loans with related book and customer data
-    loans = get_records(Loans, status, eager_load=[joinedload(Loans.book), joinedload(Loans.customer)])
+    # Use get_status to retrieve loans with related book and customer data
+    loans = get_status(Loans, status, eager_load=[joinedload(Loans.book), joinedload(Loans.customer)])
 
     # Transform loans to include books and customer data
     loan_data = []
